@@ -22,7 +22,7 @@ class MFEBackbone(nn.Module):
         self.conv3 = nn.Conv2d(c2, c3, kernel_size=4, stride=2, padding=1)
         self.bn3 = nn.BatchNorm2d(c3)
 
-        # 让 c4 真正变成更低分辨率层：H/8, W/8
+        # Make c4 a lower-resolution semantic layer: H/8, W/8.
         self.conv4 = nn.Conv2d(c3, c3, kernel_size=3, stride=2, padding=1)
         self.bn4 = nn.BatchNorm2d(c3)
 
@@ -45,10 +45,10 @@ class MFEBackbone(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def extract_features(self, x):
-        x = F.relu(self.bn1(self.conv1(x)))   # [B, C, H, W]
-        c2 = F.relu(self.bn2(self.conv2(x)))  # [B, 2C, H/2, W/2]
-        c3 = F.relu(self.bn3(self.conv3(c2))) # [B, 4C, H/4, W/4]
-        c4 = F.relu(self.bn4(self.conv4(c3))) # [B, 4C, H/8, W/8]
+        x = F.relu(self.bn1(self.conv1(x)))
+        c2 = F.relu(self.bn2(self.conv2(x)))
+        c3 = F.relu(self.bn3(self.conv3(c2)))
+        c4 = F.relu(self.bn4(self.conv4(c3)))
 
         c4 = self.res1(c4)
         c4 = self.res2(c4)
@@ -109,10 +109,13 @@ class FPNLite(nn.Module):
 
 class MFENet(GraspModel):
     """
-    兼容 skumra/robotic-grasping 训练框架的 MFENet
-    - 继承 GraspModel
-    - forward 直接返回 pos, cos, sin, width
-    - compute_loss / predict 由 GraspModel 继承
+    MFENet compatible with the original skumra/robotic-grasping training pipeline.
+
+    Default forward output is kept unchanged:
+        pos, cos, sin, width
+
+    When return_features=True, the model additionally returns multi-scale features for
+    object-centric semantic/risk branches without breaking the original compute_loss().
     """
     def __init__(self, input_channels=4, dropout=False, prob=0.1, channel_size=32):
         super(MFENet, self).__init__()
@@ -130,7 +133,6 @@ class MFENet(GraspModel):
             out_channels=fpn_channels
         )
 
-        # p2: H/2 -> H，只上采样一次，避免无效超大特征图
         self.up = nn.ConvTranspose2d(fpn_channels, base * 2, kernel_size=4, stride=2, padding=1)
         self.up_bn = nn.BatchNorm2d(base * 2)
 
@@ -156,18 +158,26 @@ class MFENet(GraspModel):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 
-    def forward(self, x):
+    def forward(self, x, return_features=False):
         features = self.backbone.extract_features(x)
         p_features = self.fpn(features)
 
-        x = p_features['p2']                    # [B, 4C, H/2, W/2]
-        x = F.relu(self.up_bn(self.up(x)))      # [B, 2C, H, W]
-        x = F.relu(self.refine_bn(self.refine(x)))  # [B, C, H, W]
-        x = self.dropout1(x)
+        p2 = p_features['p2']
+        x = F.relu(self.up_bn(self.up(p2)))
+        x = F.relu(self.refine_bn(self.refine(x)))
+        grasp_feat = self.dropout1(x)
 
-        pos_output = self.pos_output(x)
-        cos_output = self.cos_output(x)
-        sin_output = self.sin_output(x)
-        width_output = torch.sigmoid(self.width_output(x))
+        pos_output = self.pos_output(grasp_feat)
+        cos_output = self.cos_output(grasp_feat)
+        sin_output = self.sin_output(grasp_feat)
+        width_output = torch.sigmoid(self.width_output(grasp_feat))
+
+        if return_features:
+            aux_features = {
+                'features': features,
+                'p_features': p_features,
+                'grasp_feat': grasp_feat,
+            }
+            return pos_output, cos_output, sin_output, width_output, aux_features
 
         return pos_output, cos_output, sin_output, width_output
