@@ -1,3 +1,4 @@
+from .grasp_data import GraspDatasetBase
 import glob
 import os
 
@@ -6,31 +7,24 @@ from .grasp_data import GraspDatasetBase
 
 
 class JacquardDataset(GraspDatasetBase):
-    """
-    Dataset wrapper for the Jacquard dataset.
-    """
-
     def __init__(self, file_path, ds_rotate=0, **kwargs):
-        """
-        :param file_path: Jacquard Dataset directory.
-        :param ds_rotate: If splitting the dataset, rotate the list of items by this fraction first
-        :param kwargs: kwargs for GraspDatasetBase
-        """
         super(JacquardDataset, self).__init__(**kwargs)
 
-        self.grasp_files = glob.glob(os.path.join(file_path, '*', '*_grasps.txt'))
+        # 递归查找所有子文件夹中的 *_grasps.txt 文件
+        self.grasp_files = glob.glob(os.path.join(file_path, '**', '*_grasps.txt'), recursive=True)
         self.grasp_files.sort()
         self.length = len(self.grasp_files)
 
         if self.length == 0:
-            raise FileNotFoundError('No dataset files found. Check path: {}'.format(file_path))
+            raise FileNotFoundError('No grasp files found in {}'.format(file_path))
 
         if ds_rotate:
-            self.grasp_files = self.grasp_files[int(self.length * ds_rotate):] + self.grasp_files[
-                                                                                 :int(self.length * ds_rotate)]
+            self.grasp_files = self.grasp_files[int(self.length * ds_rotate):] + \
+                               self.grasp_files[:int(self.length * ds_rotate)]
 
-        self.depth_files = [f.replace('grasps.txt', 'perfect_depth.tiff') for f in self.grasp_files]
-        self.rgb_files = [f.replace('perfect_depth.tiff', 'RGB.png') for f in self.depth_files]
+        # 根据 grasp 文件路径推断 depth 和 rgb 文件
+        self.depth_files = [f.replace('_grasps.txt', '_perfect_depth.tiff') for f in self.grasp_files]
+        self.rgb_files = [f.replace('_grasps.txt', '_RGB.png') for f in self.grasp_files]
 
     def get_gtbb(self, idx, rot=0, zoom=1.0):
         gtbbs = grasp.GraspRectangles.load_from_jacquard_file(self.grasp_files[idx], scale=self.output_size / 1024.0)
@@ -54,8 +48,4 @@ class JacquardDataset(GraspDatasetBase):
         rgb_img.resize((self.output_size, self.output_size))
         if normalise:
             rgb_img.normalise()
-            rgb_img.img = rgb_img.img.transpose((2, 0, 1))
         return rgb_img.img
-
-    def get_jname(self, idx):
-        return '_'.join(self.grasp_files[idx].split(os.sep)[-1].split('_')[:-1])

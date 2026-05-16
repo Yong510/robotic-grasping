@@ -3,7 +3,8 @@ import warnings
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-from imageio import imread
+import cv2
+import numpy as np
 from skimage.transform import rotate, resize
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -23,7 +24,7 @@ class Image:
 
     @classmethod
     def from_file(cls, fname):
-        return cls(imread(fname))
+        return cls(cv2.cvtColor(cv2.imread(fname, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB))
 
     def copy(self):
         """
@@ -170,7 +171,7 @@ class DepthImage(Image):
 
     @classmethod
     def from_tiff(cls, fname):
-        return cls(imread(fname))
+        return cls(cv2.cvtColor(cv2.imread(fname, cv2.IMREAD_UNCHANGED), cv2.COLOR_BGR2RGB))
 
     def inpaint(self, missing_value=0):
         """

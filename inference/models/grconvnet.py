@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
+from collections import OrderedDict
 
 from inference.models.grasp_model import GraspModel, ResidualBlock
 
@@ -41,6 +42,29 @@ class GenerativeResnet(GraspModel):
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
                 nn.init.xavier_uniform_(m.weight, gain=1)
+
+    def extract_features(self, x_in):
+        """
+        提取多尺度特征供FPN使用。
+        返回: OrderedDict {'c2': Tensor[Batch, 64, H/2, W/2], 
+                         'c3': Tensor[Batch, 128, H/4, W/4],
+                         'c4': Tensor[Batch, 128, H/4, W/4]}
+        """
+        x = F.relu(self.bn1(self.conv1(x_in)))          # C1: [B, 32, H, W] (不使用)
+        c2 = F.relu(self.bn2(self.conv2(x)))            # C2: [B, 64, H/2, W/2]
+        c3 = F.relu(self.bn3(self.conv3(c2)))           # C3: [B, 128, H/4, W/4]
+
+        c4 = self.res1(c3)
+        c4 = self.res2(c4)
+        c4 = self.res3(c4)
+        c4 = self.res4(c4)
+        c4 = self.res5(c4)                              # C4: [B, 128, H/4, W/4]
+
+        return OrderedDict([
+            ('c2', c2),
+            ('c3', c3),
+            ('c4', c4)
+        ])
 
     def forward(self, x_in):
         x = F.relu(self.bn1(self.conv1(x_in)))
