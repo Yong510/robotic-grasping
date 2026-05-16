@@ -1,0 +1,42 @@
+{
+  "task": "grasp_and_place",
+  "frame_id": "camera_link",
+  "selected_object_id": 11,
+  "selected_class": "soda_can",
+  "target_place": "right_tray",
+  "pregrasp_pose": {
+    "position": {
+      "x": 0.05044666666666667,
+      "y": -0.31709333333333334,
+      "z": 1.181
+    },
+    "orientation": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": -0.25379123479295307,
+      "w": 0.9672590186409575
+    }
+  },
+  "grasp_pose": {
+    "position": {
+      "x": 0.05044666666666667,
+      "y": -0.31709333333333334,
+      "z": 1.081
+    },
+    "orientation": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": -0.25379123479295307,
+      "w": 0.9672590186409575
+    }
+  },
+  "gripper": {
+    "width": 0.10556144267320633,
+    "close_after_reach": true
+  },
+  "safety": {
+    "max_speed_scale": 0.2,
+    "require_collision_check": true,
+    "allow_execute": true
+  }
+}
